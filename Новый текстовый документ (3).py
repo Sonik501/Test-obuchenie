@@ -1,12 +1,10 @@
 import streamlit as st
 import requests
-import csv
 import time
-from io import StringIO
+import pandas as pd
+from io import BytesIO
 
 st.title("📱 App Store Review Parser")
-
-st.write("Сбор отзывов из App Store по APP ID")
 
 app_id = st.text_input("Введите APP ID", value="570060128")
 
@@ -42,7 +40,7 @@ if st.button("Собрать отзывы"):
             break
         
         for entry in entries:
-            review = {
+            all_reviews.append({
                 "review_id": entry.get("id", {}).get("label"),
                 "author": entry.get("author", {}).get("name", {}).get("label"),
                 "title": entry.get("title", {}).get("label"),
@@ -50,45 +48,27 @@ if st.button("Собрать отзывы"):
                 "rating": entry.get("im:rating", {}).get("label"),
                 "version": entry.get("im:version", {}).get("label"),
                 "date": entry.get("updated", {}).get("label"),
-            }
-            all_reviews.append(review)
+            })
         
         page += 1
-        progress.progress(min(page / 10, 1.0))  # просто визуальный прогресс
+        progress.progress(min(page / 10, 1.0))
         time.sleep(0.3)
     
     st.success(f"Собрано отзывов: {len(all_reviews)}")
     
-    # Создаём CSV в памяти
-    output = StringIO()
-    writer = csv.writer(output, delimiter=';')
+    # 📊 DataFrame
+    df = pd.DataFrame(all_reviews)
     
-    writer.writerow([
-        "review_id",
-        "author",
-        "title",
-        "text",
-        "rating",
-        "version",
-        "date"
-    ])
+    # 💾 Excel в памяти
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Reviews')
     
-    for r in all_reviews:
-        writer.writerow([
-            r["review_id"],
-            r["author"],
-            r["title"],
-            r["text"],
-            r["rating"],
-            r["version"],
-            r["date"]
-        ])
-    
-    csv_data = output.getvalue()
+    excel_data = output.getvalue()
     
     st.download_button(
-        label="📥 Скачать CSV",
-        data=csv_data,
-        file_name=f"app_{app_id}_reviews.csv",
-        mime="text/csv"
+        label="📥 Скачать Excel",
+        data=excel_data,
+        file_name=f"app_{app_id}_reviews.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
